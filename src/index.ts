@@ -1,3 +1,5 @@
-const foo = "foo";
+const message = "Hello World!";
 
-console.log(foo);
+export const hello = () => {
+  return message;
+};
