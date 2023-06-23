@@ -1,65 +1,89 @@
-import { describe, test, expect } from "vitest";
-import { isString, isRequired, pvts } from "@/index";
+import { vi, describe, test, expect, beforeEach } from "vitest";
+import { isString, isNotEmpty, validateOrThrow, pvts } from "@/index";
 
 describe("isString", () => {
-  const ERROR_MESSAGE = "Error Message";
-  const string = isString(ERROR_MESSAGE);
-
   test.each([
-    ["", ""],
-    ["0", "0"],
-    ["false", "false"],
-    ["undefined", "undefined"],
-    ["null", "null"],
-  ])("引数が '%s' のとき、'%s' を返していること", (value, expected) => {
-    expect(string(value)).toBe(expected);
+    ["", true],
+    ["0", true],
+    ["false", true],
+    ["undefined", true],
+    ["null", true],
+    [0, false],
+    [1, false],
+    [true, false],
+    [false, false],
+    [undefined, false],
+    [null, false],
+  ])("引数が '%s' のとき、'%s' を返すこと", (value, expected) => {
+    expect(isString(value)).toBe(expected);
   });
-
-  test.each([[1], [true], [undefined], [null]])(
-    "引数が '%s' のとき、エラーを throw していること",
-    (value) => {
-      expect(() => string(value)).toThrowError(ERROR_MESSAGE);
-    }
-  );
 });
 
-describe("isRequired", () => {
-  const ERROR_MESSAGE = "Error Message";
-  const required = isRequired(ERROR_MESSAGE);
-
+describe("isNotEmpty", () => {
   test.each([
-    [-1, -1],
-    [0, 0],
-    [1, 1],
+    [-1, true],
+    [0, true],
+    [1, true],
     [true, true],
-    [false, false],
-    ["0", "0"],
-    ["false", "false"],
-    ["undefined", "undefined"],
-    ["null", "null"],
-  ])("引数が '%s' のとき、'%s' を返していること", (value, expected) => {
-    expect(required(value)).toBe(expected);
+    [false, true],
+    ["0", true],
+    ["false", true],
+    ["undefined", true],
+    ["null", true],
+    [undefined, false],
+    [null, false],
+    ["", false],
+  ])("引数が '%s' のとき、'%s' を返すこと", (value, expected) => {
+    expect(isNotEmpty(value)).toBe(expected);
+  });
+});
+
+describe("validateOrThrow", () => {
+  const ERROR_MESSAGE = "Error Message";
+  const validatorMock = vi.fn();
+
+  beforeEach(() => {
+    validatorMock.mockClear();
   });
 
-  test.each([[undefined], [null], [""]])(
-    "引数が '%s' のとき、エラーを throw していること",
-    (value) => {
-      expect(() => required(value)).toThrowError(ERROR_MESSAGE);
-    }
-  );
+  test("検証関数が true を返したとき、渡された値をそのまま返すこと", () => {
+    validatorMock.mockReturnValue(true);
+    const validate = validateOrThrow(validatorMock, ERROR_MESSAGE);
+
+    expect(validate("foo")).toBe("foo");
+    expect(validatorMock).toHaveBeenCalledWith("foo");
+  });
+
+  test("検証関数が false を返したとき、エラーを throw すること", () => {
+    validatorMock.mockReturnValue(false);
+    const validate = validateOrThrow(validatorMock, ERROR_MESSAGE);
+
+    expect(() => validate("foo")).toThrowError(ERROR_MESSAGE);
+    expect(validatorMock).toHaveBeenCalledWith("foo");
+  });
 });
 
 describe("pvts", () => {
-  test("string() と required() のチェーン", () => {
-    const validator = pvts()
-      .string("文字列を入力してください。")
-      .required("値を入力してください。")
-      .test();
+  test("boolean を返すバリデーション関数", () => {
+    const validator = pvts().string().required().create();
 
     expect(validator("foo")).toBe(true);
     expect(validator("")).toBe(false);
     expect(validator(9)).toBe(false);
     expect(validator(null)).toBe(false);
     expect(validator()).toBe(false);
+  });
+
+  test("エラーメッセージを返すバリデーション関数", () => {
+    const validator = pvts()
+      .string("文字列を入力してください。")
+      .required("値を入力してください。")
+      .create("Message");
+
+    expect(validator("foo")).toBe("");
+    expect(validator("")).toBe("値を入力してください。");
+    expect(validator(9)).toBe("文字列を入力してください。");
+    expect(validator(null)).toBe("文字列を入力してください。");
+    expect(validator()).toBe("文字列を入力してください。");
   });
 });
